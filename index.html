@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <meta
+    name="description"
+    content="My Notes Hub - a personal notes workspace."
+  />
+
+  <title>My Notes Hub</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+
+    <div class="brand">
+
+      <button
+        class="brand-icon"
+        id="sidebarToggle"
+        title="Open / Close Sidebar"
+        type="button"
+      >
+        ☰
+      </button>
+
+      <div class="brand-text">
+        <strong>My Notes Hub</strong>
+        <span>Everything in One Place</span>
+      </div>
+
+    </div>
+
+    <nav
+      id="sidebarNav"
+      class="sidebar-nav"
+      aria-label="Main navigation"
+    ></nav>
+
+    <div class="sidebar-bottom">
+
+      <button
+        class="nav-item"
+        data-route="settings"
+        type="button"
+      >
+        <span class="nav-icon">⚙️</span>
+        <span>Settings</span>
+      </button>
+
+    </div>
+
+  </aside>
+
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <header class="topbar">
+
+      <button
+        class="mobile-menu"
+        id="mobileMenu"
+        type="button"
+        title="Menu"
+      >
+        ☰
+      </button>
+
+      <div class="search-wrap">
+
+        <span>⌕</span>
+
+        <input
+          id="globalSearch"
+          type="search"
+          placeholder="Search notes, files, links, or anything..."
+          autocomplete="off"
+        />
+
+      </div>
+
+      <div class="top-actions">
+
+        <button
+          class="icon-btn"
+          id="themeBtn"
+          title="Toggle theme"
+          type="button"
+        >
+          ☼
+        </button>
+
+        <button
+          class="icon-btn"
+          id="notificationBtn"
+          title="Notifications"
+          type="button"
+        >
+          ♧
+          <i></i>
+        </button>
+
+        <div
+          class="avatar"
+          id="topAvatar"
+          title="Profile"
+        >
+          V
+        </div>
+
+        <button
+          class="icon-btn"
+          id="accountBtn"
+          title="Account"
+          type="button"
+        >
+          ⌄
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <!-- PAGE CONTENT -->
+    <section
+      id="page"
+      class="page"
+    ></section>
+
+  </main>
+
+</div>
+
+
+<!-- MODALS -->
+<div id="modalRoot"></div>
+
+<!-- TOASTS -->
+<div
+  id="toastRoot"
+  class="toast-root"
+></div>
+
+
+<!-- APPLICATION -->
+<script src="app.js"></script>
+
+</body>
+</html>
