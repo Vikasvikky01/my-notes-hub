@@ -1,6 +1,6 @@
 /* =========================================================
    MY NOTES HUB
-   Complete Notes / Categories / Trash Application
+   Notes / Categories (folders) / Trash application
    ========================================================= */
 
 (() => {
@@ -23,10 +23,7 @@
     photo: null
   };
 
-  /* =======================================================
-     LIGHT COLOR THEMES (used for category / content cards)
-  ======================================================= */
-
+  /* Light color themes used for folder / content cards */
   const COLORS = [
     { bg: "#fff8e8", soft: "#fffdf5", icon: "#fff0bd", border: "#f3d98b", accent: "#a47700" },
     { bg: "#eef9ff", soft: "#f8fdff", icon: "#d8f0ff", border: "#a9dcf7", accent: "#2178a8" },
@@ -40,34 +37,40 @@
 
   /* =======================================================
      NAVIGATION
-     Each of these (besides dashboard / all-notes / trash) is
-     backed by a real category that is auto-created the first
-     time it's needed, so every nav item behaves exactly like
-     a user-made category: Add Content menu, all content
-     types, edit / copy / trash on each item, etc.
+     Every item except dashboard / trash is a "section".
+     A section holds folders (categories); a folder holds content.
   ======================================================= */
 
   const NAV_ITEMS = [
-    { id: "dashboard", label: "Dashboard", icon: "🏠", color: "#6C63FF" },
-    { id: "all-notes", label: "All Notes", icon: "📝", color: "#4C8DFF" },
-    { id: "work", label: "Work", icon: "💼", color: "#3AB795" },
-    { id: "personal", label: "Personal", icon: "👤", color: "#46B4B0" },
-    { id: "ideas", label: "Ideas", icon: "💡", color: "#F5A623" },
-    { id: "important", label: "Important", icon: "⭐", color: "#EF5DA8" },
-    { id: "tasks", label: "Tasks", icon: "✅", color: "#5C9DED" },
-    { id: "links", label: "Links", icon: "🔗", color: "#8E5CF7" },
-    { id: "documents", label: "Documents", icon: "📄", color: "#E0764A" },
-    { id: "screenshots", label: "Screenshots", icon: "📸", color: "#4FA6E0" },
-    { id: "contacts", label: "Contacts", icon: "👥", color: "#C2554E" },
-    { id: "travel", label: "Travel", icon: "✈️", color: "#35A7A0" },
-    { id: "finance", label: "Finance", icon: "💰", color: "#C98A2E" },
-    { id: "health", label: "Health", icon: "❤️", color: "#E14F63" },
-    { id: "learning", label: "Learning", icon: "📚", color: "#6E56CF" },
-    { id: "trash", label: "Trash", icon: "🗑️", color: "#B23B5E" }
+    { id: "dashboard", label: "Dashboard", icon: "🏠", color: "#6C63FF", desc: "" },
+    { id: "all-notes", label: "All Notes", icon: "📝", color: "#4C8DFF", desc: "Create your own categories and store different types of information." },
+    { id: "work", label: "Work", icon: "💼", color: "#3AB795", desc: "Work-related categories, notes and files." },
+    { id: "personal", label: "Personal", icon: "👤", color: "#46B4B0", desc: "Your personal notes and information." },
+    { id: "ideas", label: "Ideas", icon: "💡", color: "#F5A623", desc: "Capture ideas before they disappear." },
+    { id: "important", label: "Important", icon: "⭐", color: "#EF5DA8", desc: "Things you must not forget." },
+    { id: "tasks", label: "Tasks", icon: "✅", color: "#5C9DED", desc: "Create task lists and tick items off as you finish them." },
+    { id: "links", label: "Links", icon: "🔗", color: "#8E5CF7", desc: "Useful links and bookmarks." },
+    { id: "documents", label: "Documents", icon: "📄", color: "#E0764A", desc: "Documents and files you want to keep." },
+    { id: "screenshots", label: "Screenshots", icon: "📸", color: "#4FA6E0", desc: "Saved screenshots and images." },
+    { id: "contacts", label: "Contacts", icon: "👥", color: "#C2554E", desc: "People and contact details." },
+    { id: "travel", label: "Travel", icon: "✈️", color: "#35A7A0", desc: "Trip plans, tickets and travel notes." },
+    { id: "finance", label: "Finance", icon: "💰", color: "#C98A2E", desc: "Money notes, bills and records." },
+    { id: "health", label: "Health", icon: "❤️", color: "#E14F63", desc: "Health records and reminders." },
+    { id: "learning", label: "Learning", icon: "📚", color: "#6E56CF", desc: "Courses, study notes and resources." },
+    { id: "trash", label: "Trash", icon: "🗑️", color: "#B23B5E", desc: "" }
   ];
 
-  // Nav ids that are NOT backed by a real category
-  const NON_CATEGORY_ROUTES = new Set(["dashboard", "all-notes", "settings", "trash"]);
+  const NON_SECTION_ROUTES = new Set(["dashboard", "settings", "trash"]);
+
+  const CONTENT_TYPES = [
+    { type: "text", icon: "📝", label: "Text Note" },
+    { type: "article", icon: "📄", label: "Article" },
+    { type: "image", icon: "🖼️", label: "Image" },
+    { type: "screenshot", icon: "📸", label: "Screenshot" },
+    { type: "url", icon: "🔗", label: "URL / Link" },
+    { type: "file", icon: "📁", label: "File / Document" },
+    { type: "voice", icon: "🎙️", label: "Voice Note" }
+  ];
 
   /* =======================================================
      APPLICATION STATE
@@ -75,14 +78,17 @@
 
   let state = {
     currentRoute: "dashboard",
+    openFolderId: null,
     search: "",
     data: loadData(),
-    profile: loadProfile(),
-    driveConnected: false
+    profile: loadProfile()
   };
 
-  // Holds a freshly-picked profile photo (data URL) until "Save Profile" is clicked
-  let pendingProfilePhoto = null;
+  /* Profile photo picked in Settings but not saved yet.
+     undefined = unchanged, null = removed, string = new photo (data URL) */
+  let pendingProfilePhoto;
+
+  let clockInterval = null;
 
   /* =======================================================
      INITIALIZE
@@ -91,182 +97,144 @@
   document.addEventListener("DOMContentLoaded", init);
 
   function init() {
-
     loadTheme();
-
-    ensureAllSystemCategories();
-
     renderSidebar();
-
     bindGlobalEvents();
-
     render();
-
     updateAvatar();
-
   }
 
   /* =======================================================
-     STORAGE
+     STORAGE (+ migration from the older data layout)
   ======================================================= */
 
+  function migrateCategory(category) {
+    if (!category || typeof category !== "object") return null;
+
+    if (!Array.isArray(category.contents)) category.contents = [];
+
+    // Old layout: each sidebar page had one hidden "system" category.
+    // Keep it (as a folder in that section) only if it holds content.
+    if (category.systemRoute) {
+      if (!category.contents.length) return null;
+      category.section = category.systemRoute;
+    }
+
+    if (!category.section) category.section = "all-notes";
+
+    delete category.systemRoute;
+
+    return category;
+  }
+
   function loadData() {
-
     try {
-
       const saved = localStorage.getItem(STORAGE_KEY);
 
-      if (!saved) {
-        return { categories: [], trash: [] };
-      }
+      if (!saved) return { categories: [], trash: [] };
 
       const parsed = JSON.parse(saved);
 
-      return {
-        categories: Array.isArray(parsed.categories) ? parsed.categories : [],
-        trash: Array.isArray(parsed.trash) ? parsed.trash : []
-      };
+      const categories = (Array.isArray(parsed.categories) ? parsed.categories : [])
+        .map(migrateCategory)
+        .filter(Boolean);
 
+      const trash = [];
+
+      (Array.isArray(parsed.trash) ? parsed.trash : []).forEach(item => {
+        if (item.originalType === "category") {
+          const migrated = migrateCategory(item.originalData);
+          if (!migrated) return;
+          item.originalData = migrated;
+        }
+        trash.push(item);
+      });
+
+      return { categories, trash };
     } catch (error) {
-
       console.error("Storage load error:", error);
-
       return { categories: [], trash: [] };
-
     }
-
   }
 
   function saveData() {
-
     try {
-
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
-
     } catch (error) {
-
       console.error("Storage save error:", error);
-
       showToast("Unable to save data in browser storage.", "error");
-
     }
-
   }
 
   function loadProfile() {
-
     try {
-
       const saved = localStorage.getItem(PROFILE_KEY);
-
-      return saved
-        ? { ...DEFAULT_PROFILE, ...JSON.parse(saved) }
-        : { ...DEFAULT_PROFILE };
-
+      return saved ? { ...DEFAULT_PROFILE, ...JSON.parse(saved) } : { ...DEFAULT_PROFILE };
     } catch {
-
       return { ...DEFAULT_PROFILE };
-
     }
-
   }
 
   function saveProfile() {
-
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(state.profile));
-
+    try {
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(state.profile));
+      return true;
+    } catch (error) {
+      console.error("Profile save error:", error);
+      showToast("Unable to save profile in browser storage.", "error");
+      return false;
+    }
   }
 
   /* =======================================================
-     ID GENERATOR
+     HELPERS: ids, colors
   ======================================================= */
 
   function uid(prefix = "id") {
-
-    return (
-      prefix + "_" + Date.now().toString(36) + "_" +
-      Math.random().toString(36).substring(2, 10)
-    );
-
+    return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 10);
   }
 
-  /* =======================================================
-     RANDOM LIGHT COLOR (for category / content card tints)
-  ======================================================= */
-
   function randomColor() {
-
     return COLORS[Math.floor(Math.random() * COLORS.length)];
-
   }
 
   function colorStyle(color) {
-
     const c = color || randomColor();
-
-    return `
-      --theme-bg:${c.bg};
-      --theme-soft:${c.soft};
-      --theme-icon-bg:${c.icon};
-      --theme-border:${c.border};
-      --theme-accent:${c.accent};
-    `;
-
+    return `--theme-bg:${c.bg};--theme-soft:${c.soft};--theme-icon-bg:${c.icon};--theme-border:${c.border};--theme-accent:${c.accent};`;
   }
 
   /* =======================================================
-     SYSTEM CATEGORIES
-     Every sidebar nav item (besides dashboard / all-notes /
-     trash) is guaranteed to have a matching category so it
-     has the exact same features as a user-created category.
+     SECTION / FOLDER HELPERS
   ======================================================= */
 
-  function ensureSystemCategory(routeId) {
-
-    const navItem = NAV_ITEMS.find(n => n.id === routeId);
-
-    if (!navItem || NON_CATEGORY_ROUTES.has(routeId)) return null;
-
-    let category = state.data.categories.find(
-      c => c.systemRoute === routeId
-    );
-
-    if (!category) {
-
-      category = {
-        id: uid("category"),
-        name: navItem.label,
-        description: "",
-        icon: navItem.icon,
-        systemRoute: routeId,
-        color: randomColor(),
-        contents: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      state.data.categories.push(category);
-
-      saveData();
-
-    }
-
-    return category;
-
+  function isSectionRoute(route) {
+    return NAV_ITEMS.some(n => n.id === route) && !NON_SECTION_ROUTES.has(route);
   }
 
-  function ensureAllSystemCategories() {
+  function getNavItem(route) {
+    return NAV_ITEMS.find(n => n.id === route);
+  }
 
-    NAV_ITEMS.forEach(item => {
+  function getSectionCategories(section) {
+    return state.data.categories.filter(c => c.section === section);
+  }
 
-      if (!NON_CATEGORY_ROUTES.has(item.id)) {
+  function getRouteCount(route) {
+    if (route === "trash") return state.data.trash.length;
 
-        ensureSystemCategory(item.id);
+    if (!isSectionRoute(route)) return 0;
 
-      }
+    return getSectionCategories(route).reduce((total, c) => total + c.contents.length, 0);
+  }
 
-    });
+  function findCategory(categoryId) {
+    return state.data.categories.find(c => c.id === categoryId);
+  }
 
+  function taskStats(category) {
+    const total = category.contents.length;
+    const done = category.contents.filter(c => c.done).length;
+    return { total, done };
   }
 
   /* =======================================================
@@ -274,7 +242,6 @@
   ======================================================= */
 
   function renderSidebar() {
-
     const nav = document.getElementById("sidebarNav");
 
     if (!nav) return;
@@ -282,21 +249,13 @@
     nav.innerHTML = "";
 
     NAV_ITEMS.forEach(item => {
-
-      const count =
-        item.id === "trash"
-          ? state.data.trash.length
-          : getRouteCount(item.id);
+      const count = getRouteCount(item.id);
 
       const button = document.createElement("button");
 
       button.type = "button";
-
-      button.className =
-        "nav-item" + (state.currentRoute === item.id ? " active" : "");
-
+      button.className = "nav-item" + (state.currentRoute === item.id ? " active" : "");
       button.dataset.route = item.id;
-
       button.style.background = item.color;
       button.style.color = "#fff";
 
@@ -307,29 +266,11 @@
       `;
 
       nav.appendChild(button);
-
     });
 
-  }
-
-  function getRouteCount(route) {
-
-    if (route === "all-notes") {
-
-      return state.data.categories
-        .filter(c => !c.systemRoute)
-        .reduce((total, category) => total + category.contents.length, 0);
-
-    }
-
-    const category = state.data.categories.find(
-      c => c.systemRoute === route || normalize(c.name) === normalize(route)
-    );
-
-    if (!category) return 0;
-
-    return category.contents.length;
-
+    // keep the Settings button highlighted when open
+    const settingsBtn = document.querySelector('.sidebar-bottom [data-route="settings"]');
+    if (settingsBtn) settingsBtn.classList.toggle("active", state.currentRoute === "settings");
   }
 
   /* =======================================================
@@ -337,72 +278,46 @@
   ======================================================= */
 
   function bindGlobalEvents() {
-
     document.addEventListener("click", handleClick);
-
     document.addEventListener("change", handleChange);
-
-    document.addEventListener("input", handleInput);
+    document.addEventListener("keydown", handleKeydown);
 
     const search = document.getElementById("globalSearch");
 
     if (search) {
-
       search.addEventListener("input", event => {
-
         state.search = event.target.value.trim().toLowerCase();
-
         render();
-
       });
-
     }
 
     const themeBtn = document.getElementById("themeBtn");
-
-    if (themeBtn) {
-
-      themeBtn.addEventListener("click", toggleTheme);
-
-    }
+    if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
 
     const sidebarToggle = document.getElementById("sidebarToggle");
-
-    if (sidebarToggle) {
-
-      sidebarToggle.addEventListener("click", toggleSidebar);
-
-    }
+    if (sidebarToggle) sidebarToggle.addEventListener("click", toggleSidebar);
 
     const mobileMenu = document.getElementById("mobileMenu");
+    if (mobileMenu) mobileMenu.addEventListener("click", toggleSidebar);
 
-    if (mobileMenu) {
-
-      mobileMenu.addEventListener("click", toggleSidebar);
-
-    }
-
+    const avatar = document.getElementById("topAvatar");
+    if (avatar) avatar.addEventListener("click", () => navigate("settings"));
   }
 
   function handleClick(event) {
+    // Clicking anywhere outside an "Add Content" dropdown closes it
+    if (!event.target.closest(".add-content")) hideContentMenus();
 
-    const target = event.target.closest("button");
+    const target = event.target.closest("[data-route], [data-action]");
 
     if (!target) return;
 
-    const route = target.dataset.route;
-
-    if (route) {
-
-      navigate(route);
-
+    if (target.dataset.route) {
+      navigate(target.dataset.route);
       return;
-
     }
 
     const action = target.dataset.action;
-
-    if (!action) return;
 
     switch (action) {
 
@@ -410,22 +325,26 @@
         openCategoryModal();
         break;
 
+      case "open-folder":
+        openFolder(target.dataset.categoryId);
+        break;
+
+      case "close-folder":
+        state.openFolderId = null;
+        render();
+        break;
+
       case "open-content-menu":
-        toggleContentMenu(target);
+        toggleContentMenuById(target.dataset.categoryId);
         break;
 
       case "add-content":
-        openContentModal(
-          target.dataset.categoryId,
-          target.dataset.contentType
-        );
+        hideContentMenus();
+        openContentModal(target.dataset.categoryId, target.dataset.contentType);
         break;
 
       case "copy-content":
-        copyContentToClipboard(
-          target.dataset.categoryId,
-          target.dataset.contentId
-        );
+        copyContentToClipboard(target.dataset.categoryId, target.dataset.contentId);
         break;
 
       case "edit-category":
@@ -437,18 +356,11 @@
         break;
 
       case "edit-content":
-        openContentModal(
-          target.dataset.categoryId,
-          null,
-          target.dataset.contentId
-        );
+        openContentModal(target.dataset.categoryId, null, target.dataset.contentId);
         break;
 
       case "delete-content":
-        moveContentToTrash(
-          target.dataset.categoryId,
-          target.dataset.contentId
-        );
+        moveContentToTrash(target.dataset.categoryId, target.dataset.contentId);
         break;
 
       case "restore-trash":
@@ -467,49 +379,45 @@
         saveProfileFromForm();
         break;
 
-      case "close-modal":
-        closeModal();
+      case "remove-profile-photo":
+        removeProfilePhoto();
         break;
 
+      case "close-modal":
       case "cancel-modal":
         closeModal();
         break;
-
     }
-
   }
 
   function handleChange(event) {
+    const el = event.target;
 
-    if (event.target && event.target.id === "contentFileInput") {
+    if (!el) return;
 
-      showSelectedFile(event.target);
+    if (el.id === "contentFileInput") showSelectedFile(el);
 
+    if (el.id === "profilePhotoInput") previewProfilePhoto(el);
+
+    if (el.matches && el.matches("[data-task-toggle]")) {
+      toggleTask(el.dataset.categoryId, el.dataset.contentId, el.checked);
     }
-
-    if (event.target && event.target.id === "profilePhotoInput") {
-
-      previewProfilePhoto(event.target);
-
-    }
-
   }
 
-  function handleInput(event) {
-
-    if (event.target && event.target.id === "contentSearch") {
-
-      const value = event.target.value.toLowerCase();
-
-      document.querySelectorAll(".content-item").forEach(item => {
-
-        item.style.display =
-          item.innerText.toLowerCase().includes(value) ? "" : "none";
-
-      });
-
+  function handleKeydown(event) {
+    if (event.key === "Escape") {
+      closeModal();
+      hideContentMenus();
+      return;
     }
 
+    // Open a folder card with Enter / Space
+    if ((event.key === "Enter" || event.key === " ") && event.target.classList) {
+      if (event.target.classList.contains("folder-card")) {
+        event.preventDefault();
+        openFolder(event.target.dataset.categoryId);
+      }
+    }
   }
 
   /* =======================================================
@@ -517,21 +425,22 @@
   ======================================================= */
 
   function navigate(route) {
-
     state.currentRoute = route;
+    state.openFolderId = null;
+    pendingProfilePhoto = undefined;
 
     const sidebar = document.getElementById("sidebar");
-
-    if (sidebar) {
-
-      sidebar.classList.remove("open");
-
-    }
+    if (sidebar) sidebar.classList.remove("open");
 
     renderSidebar();
-
     render();
+  }
 
+  function openFolder(categoryId) {
+    if (!findCategory(categoryId)) return;
+    state.openFolderId = categoryId;
+    render();
+    window.scrollTo({ top: 0 });
   }
 
   /* =======================================================
@@ -539,109 +448,74 @@
   ======================================================= */
 
   function render() {
-
     const page = document.getElementById("page");
 
     if (!page) return;
 
-    if (state.currentRoute === "dashboard") {
-      renderDashboard(page);
+    if (state.currentRoute !== "dashboard" && clockInterval) {
+      clearInterval(clockInterval);
+      clockInterval = null;
+    }
+
+    switch (state.currentRoute) {
+      case "dashboard": renderDashboard(page); return;
+      case "settings": renderSettings(page); return;
+      case "trash": renderTrash(page); return;
+    }
+
+    if (isSectionRoute(state.currentRoute)) {
+      renderSection(page, state.currentRoute);
       return;
     }
 
-    if (state.currentRoute === "settings") {
-      renderSettings(page);
-      return;
-    }
-
-    if (state.currentRoute === "trash") {
-      renderTrash(page);
-      return;
-    }
-
-    if (state.currentRoute === "all-notes") {
-      renderAllNotes(page);
-      return;
-    }
-
-    renderCategoryPage(page, state.currentRoute);
-
+    navigate("dashboard");
   }
 
   /* =======================================================
-     DASHBOARD  (profile is fully editable here)
+     DASHBOARD  (profile is read-only here; edit it in Settings)
   ======================================================= */
 
   function renderDashboard(page) {
-
     const profile = state.profile;
+
+    const pendingTasks = getSectionCategories("tasks").reduce(
+      (total, c) => total + c.contents.filter(item => !item.done).length,
+      0
+    );
 
     page.innerHTML = `
 
-      <div class="dashboard-profile-top card">
+      <div class="card profile-view">
 
-        <div class="profile-card" style="margin:0;box-shadow:none;border:0">
+        <div class="profile-banner"></div>
+
+        <div class="profile-view-body">
 
           <div class="profile-photo-wrap">
-
-            <div class="profile-photo" id="dashProfilePhoto"
-              style="
-                background:linear-gradient(145deg,#6a4bea,#8a70ff);
-                display:grid;place-items:center;color:white;
-                font-size:38px;font-weight:800;
-              "
-            >
+            <div class="profile-photo">
               ${
                 profile.photo
                   ? `<img src="${profile.photo}" alt="Profile photo">`
                   : escapeHtml(getInitials(profile.name))
               }
             </div>
-
-            <label class="photo-edit-btn" for="profilePhotoInput" title="Change photo">
-              ✎
-            </label>
-
-            <input
-              id="profilePhotoInput"
-              type="file"
-              accept="image/*"
-              style="display:none"
-            >
-
           </div>
 
-          <div class="profile-edit-fields">
-
-            <div class="field">
-              <label>Name</label>
-              <input id="profileName" value="${escapeAttribute(profile.name)}" placeholder="Your name">
+          <div class="profile-view-info">
+            <h2>${escapeHtml(profile.name)}</h2>
+            ${profile.role ? `<div class="profile-role">${escapeHtml(profile.role)}</div>` : ""}
+            <div class="profile-meta">
+              ${profile.email ? `<span>✉️ ${escapeHtml(profile.email)}</span>` : `<span>✉️ No email added</span>`}
             </div>
-
-            <div class="field">
-              <label>Role</label>
-              <input id="profileRole" value="${escapeAttribute(profile.role)}" placeholder="Your role">
-            </div>
-
-            <div class="field">
-              <label>Email</label>
-              <input id="profileEmail" type="email" value="${escapeAttribute(profile.email)}" placeholder="Email">
-            </div>
-
           </div>
 
-          <div class="responsibilities">
+          <button class="secondary-btn" data-route="settings">⚙️ Edit in Settings</button>
 
-            <h3>About Me</h3>
+        </div>
 
-            <textarea id="profileDescription" placeholder="A short description about you...">${escapeHtml(profile.description)}</textarea>
-
-            <button class="primary-btn" data-action="save-profile" style="margin-top:10px">
-              Save Profile
-            </button>
-
-          </div>
-
+        <div class="profile-about">
+          <h3>About Me</h3>
+          <p>${escapeHtml(profile.description || "Add a short description about yourself in Settings.")}</p>
         </div>
 
       </div>
@@ -690,21 +564,22 @@
 
       <div class="section-title">
         <h2>Workspace</h2>
-        <span>${state.data.categories.length} categories</span>
+        <span>Overview</span>
       </div>
 
-      <div class="card dashboard-empty">
-        <button class="primary-btn" data-action="add-category">+ Add Category</button>
+      <div class="stat-grid">
+        <div class="card stat-card"><strong>${state.data.categories.length}</strong><span>Categories</span></div>
+        <div class="card stat-card"><strong>${getTotalContentCount()}</strong><span>Items saved</span></div>
+        <div class="card stat-card"><strong>${pendingTasks}</strong><span>Tasks pending</span></div>
+        <div class="card stat-card"><strong>${state.data.trash.length}</strong><span>In trash</span></div>
       </div>
 
     `;
 
     startClockUpdates();
-
   }
 
   function clockCard(flag, name, zone, className, timezone) {
-
     const now = new Date();
 
     return `
@@ -720,228 +595,220 @@
         <div class="clock-date" data-date-timezone="${timezone}">${formatDate(now, timezone)}</div>
       </div>
     `;
-
   }
 
-  let clockInterval = null;
-
   function startClockUpdates() {
-
     if (clockInterval) clearInterval(clockInterval);
-
     updateClocks();
-
     clockInterval = setInterval(updateClocks, 1000);
-
   }
 
   function updateClocks() {
-
     document.querySelectorAll("[data-timezone]").forEach(el => {
-
       el.textContent = formatTime(new Date(), el.dataset.timezone);
-
     });
 
     document.querySelectorAll("[data-date-timezone]").forEach(el => {
-
       el.textContent = formatDate(new Date(), el.dataset.dateTimezone);
-
     });
-
   }
 
   function formatTime(date, timezone) {
-
     return new Intl.DateTimeFormat("en-US", {
       timeZone: timezone, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true
     }).format(date);
-
   }
 
   function formatDate(date, timezone) {
-
     return new Intl.DateTimeFormat("en-US", {
       timeZone: timezone, weekday: "long", year: "numeric", month: "long", day: "numeric"
     }).format(date);
-
   }
 
   /* =======================================================
-     ALL NOTES
+     SECTION PAGE  (All Notes, Work, Tasks, ... all behave the same)
+     Header button = "+ Add Category". Categories show as folder
+     cards, 3 per row. Clicking a folder opens its content.
   ======================================================= */
 
-  function renderAllNotes(page) {
+  function renderSection(page, route) {
+    // A folder is open -> show its content page
+    if (state.openFolderId) {
+      const folder = findCategory(state.openFolderId);
 
-    const userCategories = state.data.categories.filter(
-      c => !c.systemRoute
-    );
+      if (folder && folder.section === route) {
+        renderFolderPage(page, folder);
+        return;
+      }
 
-    const categories = filteredCategories(userCategories);
+      state.openFolderId = null;
+    }
 
-    page.innerHTML = `
+    const nav = getNavItem(route);
 
-      <div class="page-head">
-        <div>
-          <h1>All Notes</h1>
-          <p>Create your own categories and store different types of information.</p>
-        </div>
-        <button class="primary-btn" data-action="add-category">+ Add Category</button>
-      </div>
+    const all = getSectionCategories(route);
+    const categories = filteredCategories(all);
 
-      <div class="category-list">
-        ${
-          categories.length
-            ? categories.map(renderCategoryCard).join("")
-            : `
-              <div class="empty-state">
-                <div style="font-size:40px">📂</div>
-                <h3>No categories yet</h3>
-                <p>Click "Add Category" to create your first folder.</p>
-                <button class="primary-btn" data-action="add-category">+ Add Category</button>
-              </div>
-            `
-        }
-      </div>
+    let body;
 
-    `;
-
-  }
-
-  /* =======================================================
-     CATEGORY PAGE (used by every sidebar nav item)
-  ======================================================= */
-
-  function renderCategoryPage(page, route) {
-
-    // Auto-create the category behind this nav item if needed
-    ensureSystemCategory(route);
-
-    const category = findCategoryByRoute(route);
-
-    if (!category) {
-
-      page.innerHTML = `
+    if (categories.length) {
+      body = `<div class="folder-grid">${categories.map(c => renderFolderCard(c, route)).join("")}</div>`;
+    } else if (state.search && all.length) {
+      body = `
         <div class="empty-state">
-          <h2>Category not found</h2>
-          <button class="primary-btn" data-route="all-notes">Back to All Notes</button>
-        </div>
-      `;
-
-      return;
-
+          <div style="font-size:40px">🔍</div>
+          <h3>No matches</h3>
+          <p>Nothing in ${escapeHtml(nav.label)} matches your search.</p>
+        </div>`;
+    } else {
+      body = `
+        <div class="empty-state">
+          <div style="font-size:40px">📂</div>
+          <h3>No categories yet</h3>
+          <p>Click "Add Category" to create your first folder in ${escapeHtml(nav.label)}.</p>
+          <button class="primary-btn" data-action="add-category">+ Add Category</button>
+        </div>`;
     }
 
     page.innerHTML = `
 
       <div class="page-head">
         <div>
-          <h1>${escapeHtml(category.name)}</h1>
-          <p>${escapeHtml(category.description || "")}</p>
+          <h1>${escapeHtml(nav.icon)} ${escapeHtml(nav.label)}</h1>
+          <p>${escapeHtml(nav.desc)}</p>
         </div>
-        <div style="display:flex;gap:8px">
-          <button class="secondary-btn" data-action="edit-category" data-category-id="${category.id}">
-            ✏️ Edit
-          </button>
-          <button class="primary-btn" data-action="open-content-menu" data-category-id="${category.id}">
-            + Add Content
-          </button>
-        </div>
+        <button class="primary-btn" data-action="add-category">+ Add Category</button>
       </div>
 
-      <div class="category-list">
-        ${renderCategoryCard(category)}
-      </div>
+      ${body}
 
     `;
-
   }
 
-  function renderCategoryCard(category) {
-
+  function renderFolderCard(category, route) {
     const color = category.color || COLORS[0];
+    const count = category.contents.length;
 
-    const contents = filterContents(category.contents);
+    let countLabel = `${count} item${count === 1 ? "" : "s"}`;
+
+    if (route === "tasks") {
+      const { done, total } = taskStats(category);
+      countLabel = `${done}/${total} done`;
+    }
 
     return `
 
-      <article class="category-card" style="${colorStyle(color)}" data-category-id="${category.id}">
+      <article
+        class="folder-card"
+        style="${colorStyle(color)}"
+        data-action="open-folder"
+        data-category-id="${category.id}"
+        tabindex="0"
+        role="button"
+        aria-label="Open ${escapeAttribute(category.name)}"
+      >
 
-        <div class="category-head">
+        <div class="folder-top">
 
           <div class="folder-icon">${escapeHtml(category.icon || "📁")}</div>
 
-          <div class="category-title">
-            <h3>${escapeHtml(category.name)}</h3>
-            <p>${escapeHtml(category.description || "")}</p>
-          </div>
-
-          <div class="category-actions">
-
-            <button class="mini-btn" title="Edit Category" data-action="edit-category" data-category-id="${category.id}">
-              ✏️
-            </button>
-
-            <button class="mini-btn" title="Move Category to Trash" data-action="delete-category" data-category-id="${category.id}">
-              🗑️
-            </button>
-
+          <div class="folder-actions">
+            <button class="mini-btn" title="Edit Category" data-action="edit-category" data-category-id="${category.id}">✏️</button>
+            <button class="mini-btn" title="Move Category to Trash" data-action="delete-category" data-category-id="${category.id}">🗑️</button>
           </div>
 
         </div>
 
-        <div class="content-toolbar">
+        <h3>${escapeHtml(category.name)}</h3>
+        <p>${escapeHtml(category.description || "No description")}</p>
 
-          <div class="add-content">
+        <div class="folder-foot">
+          <span>${countLabel}</span>
+          <span>Open ›</span>
+        </div>
+
+      </article>
+
+    `;
+  }
+
+  /* =======================================================
+     FOLDER PAGE  (content list - one item per row)
+  ======================================================= */
+
+  function renderFolderPage(page, category) {
+    const nav = getNavItem(category.section);
+    const contents = filterContents(category.contents);
+    const isTasks = category.section === "tasks";
+
+    let progress = "";
+
+    if (isTasks) {
+      const { done, total } = taskStats(category);
+      progress = `<span class="task-progress">${done} of ${total} completed</span>`;
+    }
+
+    page.innerHTML = `
+
+      <div class="page-head">
+
+        <div>
+          <button class="back-btn" data-action="close-folder">← Back to ${escapeHtml(nav ? nav.label : "categories")}</button>
+          <h1>${escapeHtml(category.icon || "📁")} ${escapeHtml(category.name)}</h1>
+          <p>
+            ${escapeHtml(category.description || "")}
+            ${category.description ? "•" : ""}
+            ${category.contents.length} item(s)
+            ${progress}
+          </p>
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center">
+
+          <button class="secondary-btn" data-action="edit-category" data-category-id="${category.id}">✏️ Edit</button>
+
+          <div class="add-content primary">
 
             <button type="button" data-action="open-content-menu" data-category-id="${category.id}">
               + Add Content
             </button>
 
             <div class="content-menu app-hidden" data-content-menu="${category.id}">
-              ${contentMenuButton(category.id, "text", "📝", "Text Note")}
-              ${contentMenuButton(category.id, "article", "📄", "Article")}
-              ${contentMenuButton(category.id, "image", "🖼️", "Image")}
-              ${contentMenuButton(category.id, "screenshot", "📸", "Screenshot")}
-              ${contentMenuButton(category.id, "url", "🔗", "URL / Link")}
-              ${contentMenuButton(category.id, "file", "📁", "File / Document")}
-              ${contentMenuButton(category.id, "voice", "🎙️", "Voice Note")}
+              ${CONTENT_TYPES.map(t => contentMenuButton(category.id, t.type, t.icon, t.label)).join("")}
             </div>
 
           </div>
 
-          <span style="color:var(--muted);font-size:12px">
-            ${contents.length} item(s)
-          </span>
-
         </div>
 
-        ${
-          contents.length
-            ? `<div class="content-grid">${contents.map(content => renderContentItem(category, content)).join("")}</div>`
-            : `
-              <div class="empty-state" style="margin-top:14px">
-                No content yet. Click <strong>+ Add Content</strong>
-                to add a note, image, URL, document or voice note.
-              </div>
-            `
-        }
+      </div>
 
-      </article>
+      ${
+        contents.length
+          ? `<div class="content-list">${contents.map(content => renderContentItem(category, content)).join("")}</div>`
+          : `
+            <div class="empty-state">
+              <div style="font-size:40px">${state.search ? "🔍" : "🗒️"}</div>
+              <h3>${state.search ? "No matches" : "Nothing here yet"}</h3>
+              <p>${
+                state.search
+                  ? "No content in this category matches your search."
+                  : `Click <strong>+ Add Content</strong> to add ${isTasks ? "your first task" : "a note, image, URL, document or voice note"}.`
+              }</p>
+            </div>
+          `
+      }
 
     `;
-
   }
 
   function contentMenuButton(categoryId, type, icon, label) {
-
     return `
       <button type="button" data-action="add-content" data-category-id="${categoryId}" data-content-type="${type}">
         <span>${icon}</span>
         ${label}
       </button>
     `;
-
   }
 
   /* =======================================================
@@ -949,8 +816,8 @@
   ======================================================= */
 
   function renderContentItem(category, content) {
-
     const color = content.color || category.color || COLORS[0];
+    const isTask = category.section === "tasks";
 
     let body = "";
 
@@ -961,7 +828,7 @@
     } else if (content.type === "image" || content.type === "screenshot") {
 
       body = `
-        ${content.fileData ? `<img src="${content.fileData}" alt="${escapeHtml(content.title)}">` : ""}
+        ${content.fileData ? `<img src="${content.fileData}" alt="${escapeAttribute(content.title)}">` : ""}
         ${content.content ? `<p>${escapeHtml(content.content)}</p>` : ""}
       `;
 
@@ -976,35 +843,39 @@
 
     } else if (content.type === "file") {
 
-      body = `
-        ${
-          content.fileData
-            ? `
-              <a href="${content.fileData}" download="${escapeAttribute(content.fileName || content.title)}">
-                📥 Download ${escapeHtml(content.fileName || "document")}
-              </a>
-            `
-            : `<p>${escapeHtml(content.fileName || "Document")}</p>`
-        }
-      `;
+      body = content.fileData
+        ? `<a href="${content.fileData}" download="${escapeAttribute(content.fileName || content.title)}">
+             📥 Download ${escapeHtml(content.fileName || "document")}
+           </a>`
+        : `<p>${escapeHtml(content.fileName || "Document")}</p>`;
 
     } else if (content.type === "voice") {
 
-      body = `
-        ${
-          content.fileData
-            ? `<audio controls style="width:100%;margin-top:8px;" src="${content.fileData}"></audio>`
-            : ""
-        }
-      `;
-
+      body = content.fileData
+        ? `<audio controls style="width:100%;margin-top:8px;" src="${content.fileData}"></audio>`
+        : "";
     }
 
     return `
 
-      <div class="content-item" style="${colorStyle(color)}">
+      <div class="content-item ${isTask && content.done ? "task-done" : ""}" style="${colorStyle(color)}">
 
         <div class="content-item-head">
+
+          ${
+            isTask
+              ? `<input
+                   type="checkbox"
+                   class="task-checkbox"
+                   title="Mark task as done"
+                   aria-label="Mark ${escapeAttribute(content.title || "task")} as done"
+                   data-task-toggle
+                   data-category-id="${category.id}"
+                   data-content-id="${content.id}"
+                   ${content.done ? "checked" : ""}
+                 >`
+              : ""
+          }
 
           <div class="content-icon">${getContentIcon(content.type)}</div>
 
@@ -1015,44 +886,21 @@
             ${body}
 
             <div class="content-meta">
-              ${escapeHtml(content.type)}
-              •
-              ${formatTimestamp(content.updatedAt || content.createdAt)}
+              ${escapeHtml(content.type)} • ${formatTimestamp(content.updatedAt || content.createdAt)}
             </div>
 
           </div>
 
           <div class="content-actions">
 
-            <button
-              class="mini-btn"
-              title="Copy Content"
-              data-action="copy-content"
-              data-category-id="${category.id}"
-              data-content-id="${content.id}"
-            >
-              📋
-            </button>
+            <button class="mini-btn" title="Copy Content" data-action="copy-content"
+              data-category-id="${category.id}" data-content-id="${content.id}">📋</button>
 
-            <button
-              class="mini-btn"
-              title="Edit Content"
-              data-action="edit-content"
-              data-category-id="${category.id}"
-              data-content-id="${content.id}"
-            >
-              ✎
-            </button>
+            <button class="mini-btn" title="Edit Content" data-action="edit-content"
+              data-category-id="${category.id}" data-content-id="${content.id}">✎</button>
 
-            <button
-              class="mini-btn"
-              title="Move to Trash"
-              data-action="delete-content"
-              data-category-id="${category.id}"
-              data-content-id="${content.id}"
-            >
-              🗑️
-            </button>
+            <button class="mini-btn" title="Move to Trash" data-action="delete-content"
+              data-category-id="${category.id}" data-content-id="${content.id}">🗑️</button>
 
           </div>
 
@@ -1061,38 +909,56 @@
       </div>
 
     `;
-
   }
 
   function getContentIcon(type) {
-
     const icons = {
       text: "📝", article: "📄", image: "🖼️", screenshot: "📸",
       url: "🔗", file: "📁", voice: "🎙️"
     };
 
     return icons[type] || "📌";
-
   }
 
   /* =======================================================
-     ADD CATEGORY MODAL
+     TASK CHECKBOX
+  ======================================================= */
+
+  function toggleTask(categoryId, contentId, checked) {
+    const category = findCategory(categoryId);
+
+    if (!category) return;
+
+    const item = category.contents.find(c => c.id === contentId);
+
+    if (!item) return;
+
+    item.done = Boolean(checked);
+
+    saveData();
+    render();
+  }
+
+  /* =======================================================
+     CATEGORY MODAL
   ======================================================= */
 
   function openCategoryModal(categoryId = null) {
-
-    const category = categoryId
-      ? state.data.categories.find(c => c.id === categoryId)
-      : null;
-
+    const category = categoryId ? findCategory(categoryId) : null;
     const editing = Boolean(category);
+
+    const nav = getNavItem(state.currentRoute);
 
     showModal(`
 
       <h2>${editing ? "Edit Category" : "Create Category"}</h2>
 
       <p class="sub">
-        ${editing ? "Update your category details." : "Create a new user-defined folder."}
+        ${
+          editing
+            ? "Update your category details."
+            : `This category will be created in <strong>${escapeHtml(nav ? nav.label : "All Notes")}</strong>.`
+        }
       </p>
 
       <div class="form-grid">
@@ -1116,7 +982,7 @@
 
       <div class="modal-actions">
         <button class="secondary-btn" data-action="cancel-modal">Cancel</button>
-        <button class="primary-btn" id="createCategoryButton" data-save-category="${categoryId || ""}">
+        <button class="primary-btn" id="createCategoryButton">
           ${editing ? "Update Category" : "Create Category"}
         </button>
       </div>
@@ -1124,17 +990,13 @@
     `);
 
     const button = document.getElementById("createCategoryButton");
+    if (button) button.addEventListener("click", () => saveCategory(categoryId));
 
-    if (button) {
-
-      button.addEventListener("click", () => saveCategory(categoryId));
-
-    }
-
+    const nameInput = document.getElementById("categoryName");
+    if (nameInput) nameInput.focus();
   }
 
   function saveCategory(categoryId) {
-
     const name = document.getElementById("categoryName")?.value.trim();
     const description = document.getElementById("categoryDescription")?.value.trim();
     const icon = document.getElementById("categoryIcon")?.value.trim() || "📁";
@@ -1145,8 +1007,7 @@
     }
 
     if (categoryId) {
-
-      const category = state.data.categories.find(c => c.id === categoryId);
+      const category = findCategory(categoryId);
 
       if (!category) {
         showToast("Category no longer exists.", "error");
@@ -1164,58 +1025,50 @@
       renderSidebar();
       render();
       showToast("Category updated.", "success");
-
       return;
-
     }
 
-    const category = {
+    const now = new Date().toISOString();
+
+    state.data.categories.push({
       id: uid("category"),
       name,
       description,
       icon,
-      systemRoute: null,
+      section: isSectionRoute(state.currentRoute) ? state.currentRoute : "all-notes",
       color: randomColor(),
       contents: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    state.data.categories.push(category);
+      createdAt: now,
+      updatedAt: now
+    });
 
     saveData();
     closeModal();
     renderSidebar();
     render();
     showToast("Category created successfully.", "success");
-
   }
 
   /* =======================================================
-     ADD CONTENT MODAL
+     CONTENT MODAL
   ======================================================= */
 
   function openContentModal(categoryId, contentType = null, contentId = null) {
-
-    const category = state.data.categories.find(c => c.id === categoryId);
+    const category = findCategory(categoryId);
 
     if (!category) {
       showToast("Category no longer exists.", "error");
       return;
     }
 
-    const existing = contentId
-      ? category.contents.find(c => c.id === contentId)
-      : null;
+    const existing = contentId ? category.contents.find(c => c.id === contentId) : null;
 
     if (contentId && !existing) {
       showToast("Content no longer exists.", "error");
       return;
     }
 
-    if (!contentType && existing) {
-      contentType = existing.type;
-    }
+    if (!contentType && existing) contentType = existing.type;
 
     if (!contentType) {
       toggleContentMenuById(categoryId);
@@ -1223,11 +1076,10 @@
     }
 
     const editing = Boolean(existing);
+    const isTask = category.section === "tasks";
 
-    const typeLabels = {
-      text: "Text Note", article: "Article", image: "Image", screenshot: "Screenshot",
-      url: "URL / Link", file: "File / Document", voice: "Voice Note"
-    };
+    const typeLabels = {};
+    CONTENT_TYPES.forEach(t => { typeLabels[t.type] = t.label; });
 
     let specialInput = "";
 
@@ -1283,41 +1135,36 @@
           <input id="contentUrl" type="url" value="${escapeAttribute(existing?.url || "")}" placeholder="https://example.com">
         </div>
       `;
-
     }
 
     showModal(`
 
-      <h2>${editing ? "Edit Content" : "Add " + typeLabels[contentType]}</h2>
+      <h2>${editing ? "Edit Content" : "Add " + (isTask ? "Task - " : "") + typeLabels[contentType]}</h2>
 
       <p class="sub">Category: <strong>${escapeHtml(category.name)}</strong></p>
 
       <div class="form-grid">
 
         <div class="field">
-          <label>Title</label>
-          <input id="contentTitle" type="text" value="${escapeAttribute(existing?.title || "")}" placeholder="Enter title" autofocus>
+          <label>${isTask ? "Task title" : "Title"}</label>
+          <input id="contentTitle" type="text" value="${escapeAttribute(existing?.title || "")}" placeholder="${isTask ? "What needs to be done?" : "Enter title"}" autofocus>
         </div>
 
         ${
           contentType === "text" || contentType === "article"
-            ? `
-              <div class="field">
-                <label>Content</label>
-                <textarea id="contentBody" placeholder="Write your content here...">${escapeHtml(existing?.content || "")}</textarea>
-              </div>
-            `
+            ? `<div class="field">
+                 <label>Content</label>
+                 <textarea id="contentBody" placeholder="Write your content here...">${escapeHtml(existing?.content || "")}</textarea>
+               </div>`
             : ""
         }
 
         ${
           contentType === "url"
-            ? `
-              <div class="field">
-                <label>Description</label>
-                <textarea id="contentBody" placeholder="Optional description...">${escapeHtml(existing?.content || "")}</textarea>
-              </div>
-            `
+            ? `<div class="field">
+                 <label>Description</label>
+                 <textarea id="contentBody" placeholder="Optional description...">${escapeHtml(existing?.content || "")}</textarea>
+               </div>`
             : ""
         }
 
@@ -1337,22 +1184,17 @@
     const addButton = document.getElementById("addContentButton");
 
     if (addButton) {
-
       addButton.addEventListener("click", async () => {
         await saveContent(categoryId, contentType, contentId);
       });
-
     }
 
+    const titleInput = document.getElementById("contentTitle");
+    if (titleInput) titleInput.focus();
   }
 
-  /* =======================================================
-     SAVE CONTENT
-  ======================================================= */
-
   async function saveContent(categoryId, contentType, contentId) {
-
-    const category = state.data.categories.find(c => c.id === categoryId);
+    const category = findCategory(categoryId);
 
     if (!category) {
       showToast("Category no longer exists.", "error");
@@ -1385,10 +1227,7 @@
     let fileName = "";
     let mimeType = "";
 
-    if (
-      contentType === "image" || contentType === "screenshot" ||
-      contentType === "file" || contentType === "voice"
-    ) {
+    if (["image", "screenshot", "file", "voice"].includes(contentType)) {
 
       if (fileInput && fileInput.files && fileInput.files.length > 0) {
 
@@ -1417,44 +1256,41 @@
 
         showToast("Please select a file.", "error");
         return;
-
       }
-
     }
 
     if (contentId) {
+      const item = category.contents.find(c => c.id === contentId);
 
-      const contentItem = category.contents.find(c => c.id === contentId);
-
-      if (!contentItem) {
+      if (!item) {
         showToast("Content no longer exists.", "error");
         closeModal();
         return;
       }
 
-      contentItem.title = title;
-      contentItem.content = content;
-      contentItem.url = url;
+      item.title = title;
+      item.content = content;
+      item.url = url;
 
       if (fileData) {
-        contentItem.fileData = fileData;
-        contentItem.fileName = fileName;
-        contentItem.mimeType = mimeType;
+        item.fileData = fileData;
+        item.fileName = fileName;
+        item.mimeType = mimeType;
       }
 
-      contentItem.updatedAt = new Date().toISOString();
+      item.updatedAt = new Date().toISOString();
 
       saveData();
       closeModal();
       renderSidebar();
       render();
       showToast("Content updated successfully.", "success");
-
       return;
-
     }
 
-    const newContent = {
+    const now = new Date().toISOString();
+
+    category.contents.push({
       id: uid("content"),
       type: contentType,
       title,
@@ -1463,47 +1299,58 @@
       fileData,
       fileName,
       mimeType,
+      done: false,
       color: randomColor(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+      createdAt: now,
+      updatedAt: now
+    });
 
-    if (!Array.isArray(category.contents)) {
-      category.contents = [];
-    }
-
-    category.contents.push(newContent);
-    category.updatedAt = new Date().toISOString();
+    category.updatedAt = now;
 
     saveData();
     closeModal();
     renderSidebar();
     render();
     showToast("Content added successfully.", "success");
-
   }
 
   /* =======================================================
-     FILE READER
+     FILE HELPERS
   ======================================================= */
 
   function readFileAsDataURL(file) {
-
     return new Promise((resolve, reject) => {
-
       const reader = new FileReader();
-
       reader.onload = () => resolve(reader.result);
       reader.onerror = () => reject(reader.error);
-
       reader.readAsDataURL(file);
-
     });
+  }
 
+  /* Shrinks a profile photo so it stays small in localStorage */
+  function resizeImage(dataUrl, maxSize = 400) {
+    return new Promise(resolve => {
+      const img = new Image();
+
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        resolve(canvas.toDataURL("image/jpeg", 0.86));
+      };
+
+      img.onerror = () => resolve(dataUrl);
+
+      img.src = dataUrl;
+    });
   }
 
   function showSelectedFile(input) {
-
     const preview = document.getElementById("filePreview");
 
     if (!preview) return;
@@ -1519,36 +1366,45 @@
       <strong>Selected:</strong> ${escapeHtml(file.name)}
       <br><small>${formatBytes(file.size)}</small>
     `;
-
   }
 
   /* =======================================================
-     PROFILE PHOTO PREVIEW (Dashboard)
+     PROFILE PHOTO (Settings)
   ======================================================= */
 
   async function previewProfilePhoto(input) {
-
     if (!input.files || !input.files.length) return;
 
     try {
-
-      const dataUrl = await readFileAsDataURL(input.files[0]);
+      const raw = await readFileAsDataURL(input.files[0]);
+      const dataUrl = await resizeImage(raw);
 
       pendingProfilePhoto = dataUrl;
 
-      const photoEl = document.getElementById("dashProfilePhoto");
+      const photoEl = document.getElementById("settingsProfilePhoto");
 
-      if (photoEl) {
-        photoEl.innerHTML = `<img src="${dataUrl}" alt="Profile photo">`;
-      }
+      if (photoEl) photoEl.innerHTML = `<img src="${dataUrl}" alt="Profile photo">`;
 
     } catch (error) {
-
       console.error(error);
       showToast("Unable to read the selected image.", "error");
+    }
+  }
 
+  function removeProfilePhoto() {
+    pendingProfilePhoto = null;
+
+    const photoEl = document.getElementById("settingsProfilePhoto");
+    const nameInput = document.getElementById("profileName");
+
+    if (photoEl) {
+      photoEl.textContent = getInitials(nameInput ? nameInput.value : state.profile.name);
     }
 
+    const fileInput = document.getElementById("profilePhotoInput");
+    if (fileInput) fileInput.value = "";
+
+    showToast("Photo removed. Click Save Profile to apply.", "success");
   }
 
   /* =======================================================
@@ -1556,7 +1412,6 @@
   ======================================================= */
 
   function moveCategoryToTrash(categoryId) {
-
     const index = state.data.categories.findIndex(c => c.id === categoryId);
 
     if (index === -1) {
@@ -1575,16 +1430,16 @@
 
     state.data.categories.splice(index, 1);
 
+    if (state.openFolderId === categoryId) state.openFolderId = null;
+
     saveData();
     renderSidebar();
     render();
     showToast("Category moved to Trash.", "success");
-
   }
 
   function copyContentToClipboard(categoryId, contentId) {
-
-    const category = state.data.categories.find(c => c.id === categoryId);
+    const category = findCategory(categoryId);
 
     if (!category) {
       showToast("Category not found.", "error");
@@ -1600,24 +1455,16 @@
 
     let textToCopy = "";
 
-    if (content.title) {
-      textToCopy += content.title + "\n\n";
-    }
+    if (content.title) textToCopy += content.title + "\n\n";
 
     if (content.type === "url") {
-
       if (content.url) textToCopy += content.url + "\n\n";
       if (content.content) textToCopy += content.content;
-
     } else if (content.type === "file") {
-
       textToCopy += content.fileName || "Document";
       if (content.content) textToCopy += "\n\n" + content.content;
-
-    } else {
-
-      if (content.content) textToCopy += content.content;
-
+    } else if (content.content) {
+      textToCopy += content.content;
     }
 
     textToCopy = textToCopy.trim();
@@ -1634,12 +1481,10 @@
         console.error("Clipboard error:", error);
         showToast("Unable to copy content.", "error");
       });
-
   }
 
   function moveContentToTrash(categoryId, contentId) {
-
-    const category = state.data.categories.find(c => c.id === categoryId);
+    const category = findCategory(categoryId);
 
     if (!category) {
       showToast("Category not found.", "error");
@@ -1653,14 +1498,13 @@
       return;
     }
 
-    const content = category.contents[index];
-
     state.data.trash.push({
       id: uid("trash"),
       originalType: "content",
       categoryId,
       categoryName: category.name,
-      originalData: JSON.parse(JSON.stringify(content)),
+      section: category.section,
+      originalData: JSON.parse(JSON.stringify(category.contents[index])),
       deletedAt: new Date().toISOString()
     });
 
@@ -1670,11 +1514,9 @@
     renderSidebar();
     render();
     showToast("Content moved to Trash.", "success");
-
   }
 
   function renderTrash(page) {
-
     page.innerHTML = `
 
       <div class="page-head">
@@ -1704,15 +1546,16 @@
       </div>
 
     `;
-
   }
 
   function renderTrashItem(item) {
-
     const isCategory = item.originalType === "category";
 
     const title = isCategory ? item.originalData.name : item.originalData.title;
     const type = isCategory ? "Category" : item.originalData.type;
+
+    const sectionId = isCategory ? item.originalData.section : item.section;
+    const sectionNav = getNavItem(sectionId);
 
     return `
 
@@ -1726,29 +1569,23 @@
           <strong>${escapeHtml(title || "Untitled")}</strong>
           <small>
             ${escapeHtml(type)}
-            •
-            Deleted ${formatTimestamp(item.deletedAt)}
+            • Deleted ${formatTimestamp(item.deletedAt)}
             ${!isCategory && item.categoryName ? ` • ${escapeHtml(item.categoryName)}` : ""}
+            ${sectionNav ? ` • ${escapeHtml(sectionNav.label)}` : ""}
           </small>
         </div>
 
         <div class="trash-actions">
-          <button class="secondary-btn" data-action="restore-trash" data-trash-id="${item.id}">
-            ♻️ Restore
-          </button>
-          <button class="danger-btn" data-action="permanent-delete" data-trash-id="${item.id}">
-            🗑️ Delete
-          </button>
+          <button class="secondary-btn" data-action="restore-trash" data-trash-id="${item.id}">♻️ Restore</button>
+          <button class="danger-btn" data-action="permanent-delete" data-trash-id="${item.id}">🗑️ Delete</button>
         </div>
 
       </div>
 
     `;
-
   }
 
   function restoreTrashItem(trashId) {
-
     const index = state.data.trash.findIndex(item => item.id === trashId);
 
     if (index === -1) {
@@ -1760,11 +1597,12 @@
 
     if (item.originalType === "category") {
 
-      state.data.categories.push(item.originalData);
+      const restored = migrateCategory(item.originalData) || item.originalData;
+      state.data.categories.push(restored);
 
     } else {
 
-      const category = state.data.categories.find(c => c.id === item.categoryId);
+      const category = findCategory(item.categoryId);
 
       if (category) {
 
@@ -1772,22 +1610,20 @@
 
       } else {
 
-        const recoveryCategory = {
+        const now = new Date().toISOString();
+
+        state.data.categories.push({
           id: uid("category"),
           name: item.categoryName || "Recovered Notes",
           description: "Recovered from Trash",
           icon: "♻️",
-          systemRoute: null,
+          section: item.section || "all-notes",
           color: randomColor(),
           contents: [item.originalData],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-
-        state.data.categories.push(recoveryCategory);
-
+          createdAt: now,
+          updatedAt: now
+        });
       }
-
     }
 
     state.data.trash.splice(index, 1);
@@ -1796,18 +1632,14 @@
     renderSidebar();
     render();
     showToast("Item restored successfully.", "success");
-
   }
 
   function permanentlyDeleteTrashItem(trashId) {
-
     const index = state.data.trash.findIndex(item => item.id === trashId);
 
     if (index === -1) return;
 
-    const confirmed = window.confirm("Permanently delete this item?");
-
-    if (!confirmed) return;
+    if (!window.confirm("Permanently delete this item?")) return;
 
     state.data.trash.splice(index, 1);
 
@@ -1815,16 +1647,12 @@
     renderSidebar();
     render();
     showToast("Item permanently deleted.", "success");
-
   }
 
   function emptyTrash() {
-
     if (!state.data.trash.length) return;
 
-    const confirmed = window.confirm("Permanently delete everything in Trash?");
-
-    if (!confirmed) return;
+    if (!window.confirm("Permanently delete everything in Trash?")) return;
 
     state.data.trash = [];
 
@@ -1832,21 +1660,21 @@
     renderSidebar();
     render();
     showToast("Trash cleaned successfully.", "success");
-
   }
 
   /* =======================================================
-     SETTINGS
+     SETTINGS  (the only place the profile can be edited)
   ======================================================= */
 
   function renderSettings(page) {
+    const p = state.profile;
 
     page.innerHTML = `
 
       <div class="page-head">
         <div>
           <h1>Settings</h1>
-          <p>Manage your profile and workspace.</p>
+          <p>Edit your profile details. They are shown on the Dashboard.</p>
         </div>
       </div>
 
@@ -1856,29 +1684,49 @@
 
           <h3>Profile</h3>
 
+          <div class="settings-photo-row">
+
+            <div class="profile-photo-wrap">
+              <div class="profile-photo" id="settingsProfilePhoto">
+                ${p.photo ? `<img src="${p.photo}" alt="Profile photo">` : escapeHtml(getInitials(p.name))}
+              </div>
+              <label class="photo-edit-btn" for="profilePhotoInput" title="Change photo">✎</label>
+              <input id="profilePhotoInput" type="file" accept="image/*" style="display:none">
+            </div>
+
+            <div>
+              <strong>Profile photo</strong>
+              <p>Click the pencil to upload a new photo.</p>
+              <button class="secondary-btn" type="button" data-action="remove-profile-photo">Remove photo</button>
+            </div>
+
+          </div>
+
           <div class="form-grid">
 
             <div class="field">
               <label>Name</label>
-              <input id="profileName" value="${escapeAttribute(state.profile.name)}">
-            </div>
-
-            <div class="field">
-              <label>Email</label>
-              <input id="profileEmail" type="email" value="${escapeAttribute(state.profile.email)}">
+              <input id="profileName" value="${escapeAttribute(p.name)}" placeholder="Your name">
             </div>
 
             <div class="field">
               <label>Role</label>
-              <input id="profileRole" value="${escapeAttribute(state.profile.role)}">
+              <input id="profileRole" value="${escapeAttribute(p.role)}" placeholder="Your role">
             </div>
 
             <div class="field">
-              <label>Description</label>
-              <textarea id="profileDescription">${escapeHtml(state.profile.description)}</textarea>
+              <label>Email</label>
+              <input id="profileEmail" type="email" value="${escapeAttribute(p.email)}" placeholder="Email">
             </div>
 
-            <button class="primary-btn" data-action="save-profile">Save Profile</button>
+            <div class="field">
+              <label>About Me</label>
+              <textarea id="profileDescription" placeholder="A short description about you...">${escapeHtml(p.description)}</textarea>
+            </div>
+
+            <div class="settings-actions">
+              <button class="primary-btn" data-action="save-profile">Save Profile</button>
+            </div>
 
           </div>
 
@@ -1897,11 +1745,9 @@
       </div>
 
     `;
-
   }
 
   function saveProfileFromForm() {
-
     const name = document.getElementById("profileName")?.value.trim();
     const email = document.getElementById("profileEmail")?.value.trim();
     const role = document.getElementById("profileRole")?.value.trim();
@@ -1912,49 +1758,35 @@
       return;
     }
 
-    state.profile = {
-      name,
-      email,
-      role,
-      description,
-      photo: pendingProfilePhoto || state.profile.photo || null
-    };
+    const photo = pendingProfilePhoto !== undefined ? pendingProfilePhoto : state.profile.photo;
 
-    pendingProfilePhoto = null;
+    state.profile = { name, email, role, description, photo: photo || null };
 
-    saveProfile();
+    pendingProfilePhoto = undefined;
+
+    if (!saveProfile()) return;
+
     updateAvatar();
     render();
     showToast("Profile saved.", "success");
-
   }
 
   /* =======================================================
      CONTENT MENU
   ======================================================= */
 
-  function toggleContentMenu(button) {
-
-    const categoryId = button.dataset.categoryId;
-
-    toggleContentMenuById(categoryId);
-
-  }
-
   function toggleContentMenuById(categoryId) {
-
     document.querySelectorAll(".content-menu").forEach(menu => {
-
-      const correct = menu.dataset.contentMenu === categoryId;
-
-      if (correct) {
+      if (menu.dataset.contentMenu === categoryId) {
         menu.classList.toggle("app-hidden");
       } else {
         menu.classList.add("app-hidden");
       }
-
     });
+  }
 
+  function hideContentMenus() {
+    document.querySelectorAll(".content-menu").forEach(menu => menu.classList.add("app-hidden"));
   }
 
   /* =======================================================
@@ -1962,7 +1794,6 @@
   ======================================================= */
 
   function showModal(content) {
-
     const root = document.getElementById("modalRoot");
 
     if (!root) return;
@@ -1978,23 +1809,34 @@
     const backdrop = document.getElementById("activeModal");
 
     if (backdrop) {
-
       backdrop.addEventListener("click", event => {
-
         if (event.target === backdrop) closeModal();
-
       });
-
     }
-
   }
 
   function closeModal() {
-
     const root = document.getElementById("modalRoot");
-
     if (root) root.innerHTML = "";
+  }
 
+  /* =======================================================
+     TOAST
+  ======================================================= */
+
+  function showToast(message, type = "success") {
+    const root = document.getElementById("toastRoot");
+
+    if (!root) return;
+
+    const toast = document.createElement("div");
+
+    toast.className = "toast " + type;
+    toast.textContent = message;
+
+    root.appendChild(toast);
+
+    setTimeout(() => toast.remove(), 2800);
   }
 
   /* =======================================================
@@ -2002,21 +1844,15 @@
   ======================================================= */
 
   function toggleSidebar() {
-
     const sidebar = document.getElementById("sidebar");
 
     if (!sidebar) return;
 
     if (window.innerWidth <= 760) {
-
       sidebar.classList.toggle("open");
-
     } else {
-
       sidebar.classList.toggle("closed");
-
     }
-
   }
 
   /* =======================================================
@@ -2024,24 +1860,18 @@
   ======================================================= */
 
   function loadTheme() {
-
-    const theme = localStorage.getItem(THEME_KEY);
-
-    if (theme === "dark") {
+    if (localStorage.getItem(THEME_KEY) === "dark") {
       document.body.classList.add("dark");
     }
-
   }
 
   function toggleTheme() {
-
     document.body.classList.toggle("dark");
 
     localStorage.setItem(
       THEME_KEY,
       document.body.classList.contains("dark") ? "dark" : "light"
     );
-
   }
 
   /* =======================================================
@@ -2049,171 +1879,97 @@
   ======================================================= */
 
   function filteredCategories(categories) {
-
     if (!state.search) return categories;
 
-    return categories
-      .map(category => {
+    return categories.filter(category => {
+      const categoryMatches = ((category.name || "") + " " + (category.description || ""))
+        .toLowerCase()
+        .includes(state.search);
 
-        const categoryMatches =
-          (category.name + " " + category.description)
-            .toLowerCase()
-            .includes(state.search);
-
-        const contents = filterContents(category.contents);
-
-        if (categoryMatches || contents.length) {
-
-          return { ...category, contents: categoryMatches ? category.contents : contents };
-
-        }
-
-        return null;
-
-      })
-      .filter(Boolean);
-
+      return categoryMatches || filterContents(category.contents).length > 0;
+    });
   }
 
   function filterContents(contents) {
-
     if (!state.search) return contents || [];
 
     return (contents || []).filter(content => {
-
-      const searchable = [
-        content.title, content.content, content.url, content.fileName, content.type
-      ]
+      const searchable = [content.title, content.content, content.url, content.fileName, content.type]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
 
       return searchable.includes(state.search);
-
     });
-
-  }
-
-  /* =======================================================
-     FIND CATEGORY
-  ======================================================= */
-
-  function findCategoryByRoute(route) {
-
-    return state.data.categories.find(category => {
-
-      if (category.systemRoute === route) return true;
-
-      return normalize(category.name) === normalize(route);
-
-    });
-
   }
 
   /* =======================================================
      UTILITIES
   ======================================================= */
 
-  function normalize(value) {
-
-    return String(value || "")
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-
-  }
-
   function normalizeUrl(url) {
-
     if (/^https?:\/\//i.test(url)) return url;
-
     return "https://" + url;
-
   }
 
   function formatTimestamp(timestamp) {
-
     if (!timestamp) return "";
 
     const date = new Date(timestamp);
 
     if (Number.isNaN(date.getTime())) return "";
 
-    return new Intl.DateTimeFormat("en-IN", {
-      dateStyle: "medium", timeStyle: "short"
-    }).format(date);
-
+    return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(date);
   }
 
   function formatBytes(bytes) {
-
     if (!bytes) return "0 Bytes";
 
     const units = ["Bytes", "KB", "MB", "GB"];
-
     const index = Math.floor(Math.log(bytes) / Math.log(1024));
 
-    return (
-      parseFloat((bytes / Math.pow(1024, index)).toFixed(2)) + " " + units[index]
-    );
-
+    return parseFloat((bytes / Math.pow(1024, index)).toFixed(2)) + " " + units[index];
   }
 
   function getInitials(name) {
-
     return String(name || "V")
       .split(" ")
       .filter(Boolean)
       .slice(0, 2)
       .map(part => part.charAt(0).toUpperCase())
       .join("");
-
   }
 
   function getTotalContentCount() {
-
     return state.data.categories.reduce(
-      (total, category) =>
-        total + (Array.isArray(category.contents) ? category.contents.length : 0),
+      (total, category) => total + (Array.isArray(category.contents) ? category.contents.length : 0),
       0
     );
-
   }
 
   function updateAvatar() {
-
     const avatar = document.getElementById("topAvatar");
 
     if (!avatar) return;
 
     if (state.profile.photo) {
-
       avatar.innerHTML = `<img src="${state.profile.photo}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
-
     } else {
-
       avatar.textContent = getInitials(state.profile.name);
-
     }
-
   }
 
   function escapeHtml(value) {
-
     return String(value ?? "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
-
   }
 
   function escapeAttribute(value) {
-
     return escapeHtml(value);
-
   }
 
 })();
